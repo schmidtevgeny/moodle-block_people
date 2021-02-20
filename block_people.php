@@ -84,7 +84,7 @@ class block_people extends block_base {
      * @return string
      */
     public function get_content() {
-        global $COURSE, $CFG, $OUTPUT, $USER;
+        global $COURSE, $CFG, $OUTPUT, $USER, $DB;
 
         if ($this->content !== null) {
             return $this->content;
@@ -111,7 +111,7 @@ class block_people extends block_base {
                     $currentcontext,
                     true,
                     'ra.id AS raid, r.id AS roleid, r.sortorder, u.id, u.lastname, u.firstname, u.firstnamephonetic,
-                            u.lastnamephonetic, u.middlename, u.alternatename, u.picture, u.imagealt, u.email',
+                            u.lastnamephonetic, u.middlename, u.alternatename, u.picture, u.imagealt, u.email, u.maildisplay',
                     'r.sortorder ASC, u.lastname ASC, u.firstname ASC');
         } else {
             $teachers = array();
@@ -129,9 +129,27 @@ class block_people extends block_base {
         // Initialize running variables.
         $teacherrole = null;
         $displayedteachers = array();
-
+        if ($this->page->context->contextlevel == CONTEXT_COURSE) {
+            $course = get_course($this->page->context->instanceid);
+        } else {
+            $course = false;
+        }
         // Check every teacher.
         foreach ($teachers as $teacher) {
+            if ($course and $course->groupmode and !has_capability('moodle/course:enrolreview', $this->page->context)) {
+                if (!$DB->record_exists_sql(
+                    "SELECT *
+                            FROM {groups_members} gu,
+                                 {groups_members} gt,
+                                 {groups} gr
+                            WHERE gr.id = gu.groupid
+                                AND gr.id = gt.groupid
+                                AND gr.courseid = :course
+                                AND gt.userid = :stud
+                                and gu.userid=:teacher", ['course' => $course->id, 'stud' => $USER->id, 'teacher' => $teacher->id]
+
+                )) continue;
+            }
             // If users should only be listed once.
             if (!$multipleroles) {
                 // Continue if we have already shown this user.
@@ -196,7 +214,21 @@ class block_people extends block_base {
             $this->content->text .= html_writer::start_tag('div', array('class' => 'name'));
             $this->content->text .= fullname($teacher);
             $this->content->text .= html_writer::end_tag('div');
+
+            profile_load_data($teacher);
+            $this->content->text .= html_writer::start_tag('div', array('class' => 'degree'));
+            $this->content->text .= $teacher->profile_field_degree;
+            $this->content->text .= html_writer::end_tag('div');
+
+            if ($teacher->maildisplay != 0) {
+                $this->content->text .= html_writer::start_tag('div', array('class' => 'email'));
+                $this->content->text .= $teacher->email;
+                $this->content->text .= html_writer::end_tag('div');
+            }
+
             $this->content->text .= html_writer::start_tag('div', array('class' => 'icons'));
+
+
             if ($CFG->messaging && has_capability('moodle/site:sendmessage', $currentcontext) && $teacher->id != $USER->id) {
                 $this->content->text .= html_writer::start_tag('a',
                         array('href'  => new moodle_url('/message/index.php', array('id' => $teacher->id)),
