@@ -53,3 +53,4 @@ $string['setting_roles_desc'] = 'This setting allows you to control which users 
 // Notifications.
 $string['resetvisibilitysuccess'] = 'Success! All "block_people" instances are visible (again). <br/> The setting "Reset visibility" has been reset.';
 $string['resetvisibilityerror'] = 'Oops... Something went wrong updating the database tables... <br/> The setting "Reset visibility" has been reset.';
+$string['leaveinfo'] = 'Отпуск с {$a->starttime} по {$a->endtime}';

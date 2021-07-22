@@ -86,6 +86,12 @@ class block_people extends block_base {
     public function get_content() {
         global $COURSE, $CFG, $OUTPUT, $USER, $DB;
 
+        $leavesql = "SELECT * 
+                       FROM {tsu_leave} 
+                      WHERE userid=:userid 
+                        and starttime<unix_timestamp(NOW())+259200 
+                        and endtime>unix_timestamp(NOW())";
+        $dformat =  get_string('strftimedate');
         if ($this->content !== null) {
             return $this->content;
         }
@@ -224,6 +230,18 @@ class block_people extends block_base {
                 $this->content->text .= html_writer::start_tag('div', array('class' => 'email'));
                 $this->content->text .= $teacher->email;
                 $this->content->text .= html_writer::end_tag('div');
+
+                $teacher->leave = $DB->get_record_sql($leavesql, array('userid'=>$teacher->id));
+                if ($teacher->leave) {
+                    $this->content->text .= html_writer::start_tag('div', array('class' => 'warning'));
+                    $this->content->text .= get_string('leaveinfo', 'block_people',
+                    [
+                        'starttime'=>userdate($teacher->leave->starttime,$dformat),
+                        'endtime'=>userdate($teacher->leave->endtime,$dformat),
+                    ]);
+                    $this->content->text .= html_writer::end_tag('div');
+                }
+
             }
 
             $this->content->text .= html_writer::start_tag('div', array('class' => 'icons'));
