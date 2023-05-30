@@ -82,7 +82,7 @@ class block_people extends block_base {
      * @return string
      */
     public function get_content() {
-        global $COURSE, $CFG, $OUTPUT, $USER;
+        global $COURSE, $CFG, $OUTPUT, $USER, $DB;
 
         if ($this->content !== null) {
             return $this->content;
@@ -92,6 +92,13 @@ class block_people extends block_base {
             $this->content = '';
             return $this->content;
         }
+
+        $leavesql = "SELECT * 
+           FROM {tsu_leave} 
+          WHERE userid=:userid 
+            and starttime<unix_timestamp(NOW())+259200 
+            and endtime>unix_timestamp(NOW())";
+        $dformat =  get_string('strftimedate');
 
         // Prepare output.
         $this->content = new stdClass();
@@ -127,14 +134,42 @@ class block_people extends block_base {
         // Initialize running variables.
         $teacherrole = null;
         $displayedteachers = array();
-
+        if ($this->page->context->contextlevel == CONTEXT_COURSE) {
+            $course = get_course($this->page->context->instanceid);
+        } else {
+            $context = $this->page->context;
+            $course = false;
+            while ($context = $context->get_parent_context()) {
+                if ($context->contextlevel == CONTEXT_SYSTEM) {
+                    $course = false;
+                    break;
+                }
+                if ($context->contextlevel == CONTEXT_COURSE) {
+                    $course = get_course($context->instanceid);
+                    break;
+                }
+            }
+        }
         // Check every teacher.
         foreach ($teachers as $teacher) {
             // If the user is suspended, skip him.
             if ($teacher->suspended == true) {
                 continue;
             }
+            if ($course and $course->groupmode and !has_capability('moodle/course:enrolreview', $this->page->context)) {
+                if (!$DB->record_exists_sql(
+                    "SELECT *
+                            FROM {groups_members} gu,
+                                 {groups_members} gt,
+                                 {groups} gr
+                            WHERE gr.id = gu.groupid
+                                AND gr.id = gt.groupid
+                                AND gr.courseid = :course
+                                AND gt.userid = :stud
+                                and gu.userid=:teacher", ['course' => $course->id, 'stud' => $USER->id, 'teacher' => $teacher->id]
 
+                )) continue;
+            }
             // If users should only be listed once.
             if (!$multipleroles) {
                 // Continue if we have already shown this user.
@@ -204,6 +239,29 @@ class block_people extends block_base {
                 $this->content->text .= fullname($teacher);
             }
             $this->content->text .= html_writer::end_tag('div');
+
+            profile_load_data($teacher);
+            $this->content->text .= html_writer::start_tag('div', array('class' => 'degree'));
+            $this->content->text .= $teacher->profile_field_degree;
+            $this->content->text .= html_writer::end_tag('div');
+
+            if ($teacher->maildisplay != 0) {
+                $this->content->text .= html_writer::start_tag('div', array('class' => 'email'));
+                $this->content->text .= $teacher->email;
+                $this->content->text .= html_writer::end_tag('div');
+            }
+
+            $teacher->leave = $DB->get_record_sql($leavesql, array('userid'=>$teacher->id));
+            if ($teacher->leave) {
+                $this->content->text .= html_writer::start_tag('div', array('class' => 'warning'));
+                $this->content->text .= get_string('leaveinfo', 'block_people',
+                [
+                    'starttime'=>userdate($teacher->leave->starttime,$dformat),
+                    'endtime'=>userdate($teacher->leave->endtime,$dformat),
+                ]);
+                $this->content->text .= html_writer::end_tag('div');
+            }
+
             $this->content->text .= html_writer::start_tag('div', array('class' => 'icons'));
             if (get_config('block_people', 'linkmessaging') == 1 &&
                     $CFG->messaging && has_capability('moodle/site:sendmessage', $currentcontext) && $teacher->id != $USER->id &&
