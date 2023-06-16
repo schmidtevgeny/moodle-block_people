@@ -116,7 +116,7 @@ class block_people extends block_base {
                     $currentcontext,
                     true,
                     'ra.id AS raid, r.id AS roleid, r.sortorder, u.id, u.lastname, u.firstname, u.firstnamephonetic,
-                            u.lastnamephonetic, u.middlename, u.alternatename, u.picture, u.imagealt, u.email, u.suspended',
+                            u.lastnamephonetic, u.middlename, u.alternatename, u.picture, u.imagealt, u.email, u.maildisplay, u.suspended',
                     'r.sortorder ASC, u.lastname ASC, u.firstname ASC');
         } else {
             $teachers = array();
